@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:pricimal/basket.dart';
 import 'package:go_router/go_router.dart';
 
 
@@ -32,7 +31,10 @@ class HomeLayout extends StatelessWidget {
                 constraints: const BoxConstraints(
                   maxWidth: 1300,
                 ),
-                child: navigationShell,
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: navigationShell,
+                ),
               ),
             ),
           ),
@@ -131,7 +133,6 @@ class NavBar extends StatelessWidget {
     final navItems = [
       const _NavItemData(icon: Icons.shopping_cart_outlined, text: 'My Basket'),
       const _NavItemData(icon: Icons.storefront_outlined, text: 'My Shops'),
-      const _NavItemData(icon: Icons.local_offer_outlined, text: 'Deals'),
       const _NavItemData(icon: Icons.history, text: 'Basket History'),
     ];
 

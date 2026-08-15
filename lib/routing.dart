@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pricimal/basket.dart';
 import 'package:pricimal/home.dart';
+import 'package:pricimal/shops.dart';
 
 final GoRouter router = GoRouter(
   initialLocation: '/basket',
@@ -15,7 +16,7 @@ final GoRouter router = GoRouter(
           routes: [
             GoRoute(
               path: '/basket',
-              builder: (context, state) => const Scaffold(),
+              builder: (context, state) => const BasketPage(),
             ),
           ],
         ),
@@ -23,15 +24,7 @@ final GoRouter router = GoRouter(
           routes: [
             GoRoute(
               path: '/shops',
-              builder: (context, state) => const Scaffold(),
-            ),
-          ],
-        ),
-        StatefulShellBranch(
-          routes: [
-            GoRoute(
-              path: '/deals',
-              builder: (context, state) => const Scaffold(),
+              builder: (context, state) => const ShopPage(),
             ),
           ],
         ),
