@@ -92,26 +92,26 @@ class Header extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(width: 40),
+          // const SizedBox(width: 40),
 
-          const Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.person_outline,
-                color: Colors.white,
-                size: 26,
-              ),
-              SizedBox(height: 4),
-              Text(
-                "Account",
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
+          // const Column(
+          //   mainAxisAlignment: MainAxisAlignment.center,
+          //   children: [
+          //     Icon(
+          //       Icons.person_outline,
+          //       color: Colors.white,
+          //       size: 26,
+          //     ),
+          //     SizedBox(height: 4),
+          //     Text(
+          //       "Account",
+          //       style: TextStyle(
+          //         color: Colors.white70,
+          //         fontSize: 13,
+          //       ),
+          //     ),
+          //   ],
+          // ),
         ],
       ),
     );
@@ -133,7 +133,7 @@ class NavBar extends StatelessWidget {
     final navItems = [
       const _NavItemData(icon: Icons.shopping_cart_outlined, text: 'My Basket'),
       const _NavItemData(icon: Icons.storefront_outlined, text: 'My Shops'),
-      const _NavItemData(icon: Icons.history, text: 'Basket History'),
+      // const _NavItemData(icon: Icons.history, text: 'Basket History'),
     ];
 
 

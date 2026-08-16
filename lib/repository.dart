@@ -31,6 +31,14 @@ class ShoppingRepository extends ChangeNotifier {
     return _priceIndex['${shopId}_$productId'];
   }
 
+  Product? getProduct(String productId) {
+    return _products[productId];
+  }
+
+  Shop? getShop(String shopId) {
+    return _shops[shopId];
+  }
+
   void setPrice(String shopId, String productId, double price) {
     _priceIndex['${shopId}_$productId'] = price;
     notifyListeners();
@@ -127,46 +135,5 @@ class ShoppingRepository extends ChangeNotifier {
       }
     }
     return result;
-  }
-
-  List<ShopBasketResult> getCheapestShops(Map<String, int> productQuantities) {
-    final List<ShopBasketResult> results = [];
-
-    for (final shop in selectedShops) {
-      double totalCost = 0.0;
-      int foundItems = 0;
-      final List<Product> missing = [];
-
-      productQuantities.forEach((productId, qty) {
-        final price = getPrice(shop.id, productId);
-        final product = _products[productId];
-
-        if (price != null && product != null) {
-          totalCost += price * qty;
-          foundItems++;
-        } else if (product != null) {
-          missing.add(product);
-        }
-      });
-
-      results.add(
-        ShopBasketResult(
-          shop: shop,
-          totalCost: totalCost,
-          foundItemsCount: foundItems,
-          totalItemsCount: productQuantities.length,
-          missingProducts: missing,
-        ),
-      );
-    }
-
-    // Sort by completeness first, then by lowest total cost
-    results.sort((a, b) {
-      if (a.isComplete && !b.isComplete) return -1;
-      if (!a.isComplete && b.isComplete) return 1;
-      return a.totalCost.compareTo(b.totalCost);
-    });
-
-    return results;
   }
 }

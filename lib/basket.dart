@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:pricimal/optimizer.dart';
 import 'package:pricimal/util.dart';
 import 'package:provider/provider.dart';
 import 'package:pricimal/repository.dart';
@@ -70,7 +72,13 @@ class _BasketPageState extends State<BasketPage> {
     for (var item in _basketItems) item.product.id: item.quantity,
   };
 
-void _showCheapestBasketResults(BuildContext context, List<ShopBasketResult> results) {
+  void _showCheapestBasketResults(BuildContext context, OptimizationResult result, ShoppingRepository repository) {
+    // Group purchases by shop
+    final Map<String, List<String>> shopPurchases = {};
+    result.purchases.forEach((productId, shopId) {
+      shopPurchases.putIfAbsent(shopId, () => []).add(productId);
+    });
+
     showDialog(
       context: context,
       builder: (context) {
@@ -81,7 +89,7 @@ void _showCheapestBasketResults(BuildContext context, List<ShopBasketResult> res
           child: ConstrainedBox(
             constraints: BoxConstraints(
               maxWidth: 600,
-              maxHeight: MediaQuery.of(context).size.height * 0.8,
+              maxHeight: MediaQuery.of(context).size.height * 0.85,
             ),
             child: Padding(
               padding: const EdgeInsets.all(24.0),
@@ -93,7 +101,7 @@ void _showCheapestBasketResults(BuildContext context, List<ShopBasketResult> res
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'Cheapest Shops Comparison',
+                        'Optimal Basket Result',
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -107,111 +115,152 @@ void _showCheapestBasketResults(BuildContext context, List<ShopBasketResult> res
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Text(
-                    'Prices compared across selected stores for your current basket.',
+                    'Best route and product breakdown to minimize overall cost.',
                     style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
                   ),
                   const SizedBox(height: 16),
+
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Total Estimated Cost',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black54,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'RM ${result.totalCost.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green.shade800,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              'Products: RM ${result.productCost.toStringAsFixed(2)}',
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Travel: RM ${result.travelCost.toStringAsFixed(2)}',
+                              style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   const Divider(height: 1),
+                  const SizedBox(height: 16),
+
+                  const Text(
+                    'Store Route & Items to Buy',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 12),
 
-                  // Results List
+                  // 3. Sequential Route & Items List
                   Expanded(
-                    child: results.isEmpty
+                    child: result.route.isEmpty
                         ? const Center(
                             child: Text(
-                              'No selected shops found. Select shops to compare prices.',
+                              'No shops or items found for this optimization.',
                               style: TextStyle(color: Colors.grey),
                             ),
                           )
                         : ListView.separated(
                             shrinkWrap: true,
-                            itemCount: results.length,
-                            separatorBuilder: (_, _) => const Divider(height: 1),
+                            itemCount: result.route.length,
+                            separatorBuilder: (_, _) => const SizedBox(height: 12),
                             itemBuilder: (context, index) {
-                              final result = results[index];
-                              final isCheapest =
-                                  index == 0 && result.isComplete;
+                              final shop = result.route[index];
+
+                              // Match purchases by shop
+                              final itemsToBuy = shopPurchases[shop.name] ??
+                                  shopPurchases[shop.id] ??
+                                  [];
 
                               return Container(
-                                margin: const EdgeInsets.symmetric(vertical: 4),
                                 decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: isCheapest
-                                      ? Border.all(
-                                          color: Colors.green.shade200)
-                                      : null,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.grey.shade300),
                                 ),
-                                child: ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 8),
+                                child: ExpansionTile(
+                                  initiallyExpanded: true,
                                   leading: CircleAvatar(
-                                    backgroundColor: isCheapest
-                                        ? Colors.green.shade100
-                                        : Colors.grey.shade200,
-                                    child: Icon(
-                                      isCheapest
-                                          ? Icons.emoji_events
-                                          : Icons.store,
-                                      color: isCheapest
-                                          ? Colors.green.shade800
-                                          : Colors.grey.shade700,
-                                    ),
-                                  ),
-                                  title: Row(
-                                    children: [
-                                      Text(
-                                        result.shop.name,
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.bold),
-                                      ),
-                                      if (isCheapest) ...[
-                                        const SizedBox(width: 8),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 8, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: Colors.green,
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                          ),
-                                          child: const Text(
-                                            'Best Deal',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                  subtitle: Padding(
-                                    padding: const EdgeInsets.only(top: 4.0),
+                                    backgroundColor: Colors.blue.shade100,
                                     child: Text(
-                                      result.isComplete
-                                          ? 'All ${result.totalItemsCount} items available'
-                                          : '${result.foundItemsCount}/${result.totalItemsCount} items available (Missing: ${result.missingProducts.map((p) => p.name).join(", ")})',
+                                      '${index + 1}',
                                       style: TextStyle(
-                                        fontSize: 13,
-                                        color: result.isComplete
-                                            ? Colors.grey.shade600
-                                            : Colors.orange.shade800,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.blue.shade900,
                                       ),
                                     ),
                                   ),
-                                  trailing: Text(
-                                    'RM ${result.totalCost.toStringAsFixed(2)}',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: isCheapest
-                                          ? Colors.green.shade700
-                                          : Colors.black,
-                                    ),
+                                  title: Text(
+                                    shop.name,
+                                    style: const TextStyle(fontWeight: FontWeight.bold),
                                   ),
+                                  subtitle: Text(
+                                    '${itemsToBuy.length} item(s) assigned',
+                                    style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                                  ),
+                                  children: [
+                                    const Divider(height: 1),
+                                    if (itemsToBuy.isEmpty)
+                                      const Padding(
+                                        padding: EdgeInsets.all(12.0),
+                                        child: Text(
+                                          'No items to purchase at this stop.',
+                                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                                        ),
+                                      )
+                                    else
+                                      ListView.builder(
+                                        shrinkWrap: true,
+                                        physics: const NeverScrollableScrollPhysics(),
+                                        itemCount: itemsToBuy.length,
+                                        itemBuilder: (context, itemIdx) {
+                                          return ListTile(
+                                            dense: true,
+                                            leading: const Icon(
+                                              Icons.check_circle_outline,
+                                              size: 18,
+                                              color: Colors.green,
+                                            ),
+                                            title: Text(
+                                              repository.getProduct(itemsToBuy[itemIdx])!.name,
+                                              style: const TextStyle(fontSize: 14),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                  ],
                                 ),
                               );
                             },
@@ -229,10 +278,14 @@ void _showCheapestBasketResults(BuildContext context, List<ShopBasketResult> res
   @override
   Widget build(BuildContext context) {
     final repository = context.watch<ShoppingRepository>();
-    final results = _basketItems.isNotEmpty
-        ? repository.getCheapestShops(_productQuantities)
-        : <ShopBasketResult>[];
-    final cheapestCost = results.isNotEmpty ? results.first.totalCost : 0.0;
+    final optimizer = GreedyOptimizer();
+    final results = optimizer.optimize(
+      basket: _productQuantities, 
+      repository: repository, 
+      home: LatLng(3.0647, 101.6091), 
+      costPerMeter: 0.01
+    );
+    final cheapestCost = results!.totalCost;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -288,7 +341,7 @@ void _showCheapestBasketResults(BuildContext context, List<ShopBasketResult> res
               child: SummaryCard(
                 totalItems: _totalItems,
                 totalPrice: cheapestCost,
-                onFindCheapest: () => _showCheapestBasketResults(context, results),
+                onFindCheapest: () => _showCheapestBasketResults(context, results, repository),
               ),
             ),
           ],
@@ -354,7 +407,7 @@ class BasketCard extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Estimated basket total',
+                        'Estimated basket total (excl. travel)',
                         style: TextStyle(
                           color: Colors.grey.shade700,
                         ),
@@ -498,6 +551,10 @@ class SummaryCard extends StatelessWidget {
             SummaryRow(
               label: 'Items',
               value: '$totalItems',
+            ),
+            SummaryRow(
+              label: 'Estimated cost (incl. travel)',
+              value: 'RM ${totalPrice.toStringAsFixed(2)}',
             ),
             const SizedBox(height: 25),
             SizedBox(
