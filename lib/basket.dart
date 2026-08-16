@@ -1,18 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pricimal/util.dart';
+import 'package:provider/provider.dart';
 
-
-
-const List<Product> availableProducts = [
-  Product(id: '1', name: 'Milk 1L', price: 7.90),
-  Product(id: '2', name: 'Eggs 10-pack', price: 6.90),
-  Product(id: '3', name: 'Bread', price: 4.50),
-  Product(id: '4', name: 'Chicken Breast 500g', price: 13.50),
-  Product(id: '5', name: 'Apples 1kg', price: 8.90),
-  Product(id: '6', name: 'Rice 5kg', price: 28.00),
-  Product(id: '7', name: 'Cooking Oil 2L', price: 14.50),
-  Product(id: '8', name: 'Cereal 500g', price: 11.20),
-];
 
 class BasketItemData {
   final Product product;
@@ -64,10 +53,10 @@ class _BasketPageState extends State<BasketPage> {
     });
   }
 
-  double get _totalPrice => _basketItems.fold(
-        0.0,
-        (sum, item) => sum + (item.product.price * item.quantity),
-      );
+  // double get _totalPrice => _basketItems.fold(
+  //       0.0,
+  //       (sum, item) => sum + (item.product.price * item.quantity),
+  //     );
 
   int get _totalItems => _basketItems.fold(
         0,
@@ -76,6 +65,8 @@ class _BasketPageState extends State<BasketPage> {
 
   @override
   Widget build(BuildContext context) {
+    final repository = context.watch<ShoppingRepository>();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -106,17 +97,17 @@ class _BasketPageState extends State<BasketPage> {
                 children: [
                   GenericSearchBox<Product>(
                     onSelectItem: _addProductToBasket,
-                    items: availableProducts,
+                    items: repository.getProductsForShops(repository.selectedShops.map((s) => s.id).toList()),
                     hintText: 'Search product (e.g., Milk, Eggs, Rice)...',
                     labelBuilder: (product) => product.name,
-                    trailingBuilder: (product) => 'RM ${product.price.toStringAsFixed(2)}',
+                    trailingBuilder: (product) => '',
                   ),
 
                   const SizedBox(height: 20),
 
                   BasketCard(
                     items: _basketItems,
-                    totalPrice: _totalPrice,
+                    totalPrice: 0.0,
                     onDelete: _removeProduct,
                     onQuantityChanged: _updateQuantity,
                   ),
@@ -129,7 +120,7 @@ class _BasketPageState extends State<BasketPage> {
             Expanded(
               child: SummaryCard(
                 totalItems: _totalItems,
-                totalPrice: _totalPrice,
+                totalPrice: 0.0,
               ),
             ),
           ],
@@ -275,7 +266,8 @@ class BasketItem extends StatelessWidget {
           ),
           const SizedBox(width: 20),
           Text(
-            'RM ${(item.product.price * item.quantity).toStringAsFixed(2)}',
+            '0.0',
+            // 'RM ${(item.product.price * item.quantity).toStringAsFixed(2)}',
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(width: 15),

@@ -1,27 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:pricimal/util.dart';
-
-class ShopData {
-  final String id;
-  final String name;
-  final List<Product> items;
-
-  const ShopData({
-    required this.id,
-    required this.name,
-    required this.items,
-  });
-}
-
-final List<ShopData> _availableShops = [
-  ShopData(id: '1', name: "Jaya Grocer", items: [])
-];
-
-const List<Product> availableProducts = [
-  Product(id: '1', name: 'Milk 1L', price: 7.90),
-  Product(id: '2', name: 'Eggs 10-pack', price: 6.90),
-  Product(id: '3', name: 'Bread', price: 4.50),
-];
 
 
 class ShopPage extends StatefulWidget {
@@ -33,51 +12,30 @@ class ShopPage extends StatefulWidget {
 }
 
 class _ShopPageState extends State<ShopPage> {
-  final List<ShopData> _selectedShops = [];
+  Future<void> _openShopDialog([Shop? existingShop]) async {
+    final repository = context.read<ShoppingRepository>();
 
-
-  void _selectShop(ShopData shop) {
-    setState(() {
-      if (!_selectedShops.any((s) => s.id == shop.id)) {
-        _selectedShops.add(shop);
-      }
-    });
-  }
-
-  void _unselectShop(ShopData shop) {
-    setState(() {
-      _selectedShops.remove(shop);
-    });
-  }
-
-  Future<void> _openShopDialog([ShopData? existingShop]) async {
-    final result = await showDialog<ShopData>(
+    final result = await showDialog<List>(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => ShopEditDialog(existingShop: existingShop),
+      barrierDismissible: true,
+      builder: (context) => ShopEditDialog(
+        existingShop: existingShop,
+      ),
     );
 
-    if (result != null) {
-      setState(() {
-        final index = _selectedShops.indexWhere((s) => s.id == result.id);
-        if (index != -1) {
-          _selectedShops[index] = result;
-        } else {
-          _selectedShops.add(result);
-        }
+    debugPrint("shop finished");
 
-        final availableIndex = _availableShops.indexWhere((s) => s.id == result.id);
-        if (availableIndex != -1) {
-          _availableShops[availableIndex] = result;
-        } else {
-          _availableShops.add(result);
-        }
-      });
+    if (result != null) {
+      final Shop shop = result[0];
+      final Map<String, double> prices = result[1];
+      repository.addShopWithPrices(shop, prices);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final repository = context.watch<ShoppingRepository>();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -114,18 +72,18 @@ class _ShopPageState extends State<ShopPage> {
 
         const SizedBox(height: 20),
 
-        GenericSearchBox<ShopData>(
-          items: _availableShops, 
+        GenericSearchBox<Shop>(
+          items: repository.allShops, 
           hintText: "Search existing shops...",
-          onSelectItem: (shop) => _selectShop(shop), 
+          onSelectItem: (shop) => repository.selectShop(shop), 
           labelBuilder: (shop) => shop.name, 
-          trailingBuilder: (shop) => '${shop.items.length} items',
+          trailingBuilder: (shop) => '',
         ),
 
         ShopCard(
-          shops: _selectedShops, 
+          shops: repository.selectedShops, 
           onEdit: (shop) => _openShopDialog(shop),
-          onDelete: (shop) => _unselectShop(shop),
+          onDelete: (shop) => repository.unselectShop(shop),
         )
       ],
     );
@@ -134,9 +92,12 @@ class _ShopPageState extends State<ShopPage> {
 }
 
 class ShopEditDialog extends StatefulWidget {
-  final ShopData? existingShop;
+  final Shop? existingShop;
 
-  const ShopEditDialog({super.key, this.existingShop});
+  const ShopEditDialog({
+    super.key, 
+    this.existingShop,
+  });
 
   @override
   State<ShopEditDialog> createState() => _ShopEditDialogState();
@@ -144,13 +105,18 @@ class ShopEditDialog extends StatefulWidget {
 
 class _ShopEditDialogState extends State<ShopEditDialog> {
   late TextEditingController _nameController;
-  late List<Product> _shopItems;
+  final Map<String, double> _localProductPrices = {};
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.existingShop?.name ?? '');
-    _shopItems = List.from(widget.existingShop?.items ?? []);
+
+    // populate an existing shop's products
+    if (widget.existingShop != null) {
+      final repository = context.read<ShoppingRepository>();
+      _localProductPrices.addAll(repository.getPricesForShop(widget.existingShop!.id));
+    }
   }
 
   @override
@@ -159,22 +125,46 @@ class _ShopEditDialogState extends State<ShopEditDialog> {
     super.dispose();
   }
 
-  void _addProductToShop(Product product) {
-    setState(() {
-      if (!_shopItems.any((p) => p.id == product.id)) {
-        _shopItems.add(product);
-      }
-    });
-  }
+  void _promptPriceAndAdd(Product product) {
+    final priceController = TextEditingController(
+      text: _localProductPrices[product.id]?.toStringAsFixed(2) ?? '',
+    );
 
-  void _removeProductFromShop(int index) {
-    setState(() {
-      _shopItems.removeAt(index);
-    });
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Set Price for ${product.name}'),
+        content: TextField(
+          controller: priceController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: 'Price (RM)',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final val = double.tryParse(priceController.text);
+              if (val != null && val >= 0) {
+                setState(() => _localProductPrices[product.id] = val);
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('Save Price'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final repository = context.read<ShoppingRepository>();
     final isEditing = widget.existingShop != null;
 
     return AlertDialog(
@@ -195,50 +185,29 @@ class _ShopEditDialogState extends State<ShopEditDialog> {
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                'Shop Products',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
               GenericSearchBox<Product>(
-                items: availableProducts,
-                onSelectItem: _addProductToShop,
-                labelBuilder: (product) => product.name,
-                trailingBuilder: (product) =>
-                    'RM ${product.price.toStringAsFixed(2)}',
+                items: repository.allProducts,
+                onSelectItem: _promptPriceAndAdd,
+                labelBuilder: (p) => p.name,
+                trailingBuilder: (_) => '',
               ),
               const SizedBox(height: 12),
-              _shopItems.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    'No items added to this shop yet.',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                )
-              : ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _shopItems.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final item = _shopItems[index];
-                    return ListTile(
-                      dense: true,
-                      title: Text(item.name),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('RM ${item.price.toStringAsFixed(2)}'),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline, size: 20),
-                            onPressed: () => _removeProductFromShop(index),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _localProductPrices.length,
+                itemBuilder: (context, index) {
+                  final productId = _localProductPrices.keys.elementAt(index);
+                  final price = _localProductPrices[productId]!;
+                  final prod = repository.allProducts.firstWhere((p) => p.id == productId);
+
+                  return ListTile(
+                    title: Text(prod.name),
+                    trailing: Text('RM ${price.toStringAsFixed(2)}'),
+                    onTap: () => _promptPriceAndAdd(prod),
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -250,22 +219,13 @@ class _ShopEditDialogState extends State<ShopEditDialog> {
         ),
         ElevatedButton(
           onPressed: () {
-            final nameText = _nameController.text.trim();
-            if (nameText.isEmpty) return;
+            if (_nameController.text.isEmpty) return;
+            final shopId = widget.existingShop?.id ?? DateTime.now().millisecondsSinceEpoch.toString();
+            final shop = Shop(id: shopId, name: _nameController.text);
 
-            final savedShop = ShopData(
-              id: widget.existingShop?.id ??
-                  DateTime.now().millisecondsSinceEpoch.toString(),
-              name: nameText,
-              items: _shopItems,
-            );
-            Navigator.of(context).pop(savedShop);
+            Navigator.pop(context, [shop, _localProductPrices]);
           },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFE53935),
-            foregroundColor: Colors.white,
-          ),
-          child: const Text('Save Shop'),
+          child: const Text('Save'),
         ),
       ],
     );
@@ -273,9 +233,9 @@ class _ShopEditDialogState extends State<ShopEditDialog> {
 }
 
 class ShopCard extends StatelessWidget {
-  final List<ShopData> shops;
-  final ValueChanged<ShopData> onEdit;
-  final ValueChanged<ShopData> onDelete;
+  final List<Shop> shops;
+  final ValueChanged<Shop> onEdit;
+  final ValueChanged<Shop> onDelete;
 
   const ShopCard({
     super.key,
@@ -323,7 +283,7 @@ class ShopCard extends StatelessWidget {
 }
 
 class ShopListing extends StatelessWidget {
-  final ShopData shop;
+  final Shop shop;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 

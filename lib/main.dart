@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:pricimal/home.dart';
-import 'package:go_router/go_router.dart';
+import 'package:pricimal/util.dart';
+import 'package:provider/provider.dart';
 import 'package:pricimal/routing.dart';
 
 
 void main() {
-  runApp(const PricimalApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) {
+        final repository = ShoppingRepository();
+        repository.initializeRepository(sampleProducts, sampleShops, samplePrices);
+        return repository;
+      },
+      child: PricimalApp(),
+    )
+  );
 }
 
 class PricimalApp extends StatelessWidget {
