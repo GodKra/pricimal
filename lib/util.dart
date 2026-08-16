@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 List<Product> sampleProducts = [
   Product(id: '1', name: 'Milk 1L'),
@@ -17,9 +19,9 @@ List<Product> sampleProducts = [
 ];
 
 List<Shop> sampleShops = [
-  Shop(id: '1', name: 'Jaya Grocer'),
-  Shop(id: '2', name: 'Watsons'),
-  Shop(id: '3', name: 'Lotus')
+  Shop(id: '1', name: 'Jaya Grocer', location: LatLng(3.0723883444553337, 101.60583523859046)),
+  Shop(id: '2', name: 'Watsons', location: LatLng(3.0649186801964587, 101.60872429626377)),
+  Shop(id: '3', name: 'Village Grocer', location: LatLng(3.065714534215823, 101.60562475922983))
 ];
 
 List<ShopProductPrice> samplePrices = [
@@ -46,10 +48,12 @@ class Product {
 class Shop {
   final String id;
   final String name;
+  final LatLng location;
 
   const Shop({
     required this.id, 
-    required this.name
+    required this.name,
+    required this.location
   });
 }
 
@@ -65,24 +69,6 @@ class ShopProductPrice {
   });
 
   String get lookupKey => '${shopId}_$productId';
-}
-
-class ShopBasketResult {
-  final Shop shop;
-  final double totalCost;
-  final int foundItemsCount;
-  final int totalItemsCount;
-  final List<Product> missingProducts;
-
-  ShopBasketResult({
-    required this.shop,
-    required this.totalCost,
-    required this.foundItemsCount,
-    required this.totalItemsCount,
-    required this.missingProducts,
-  });
-
-  bool get isComplete => missingProducts.isEmpty;
 }
 
 class GenericSearchBox<T extends Object> extends StatelessWidget {
@@ -182,6 +168,94 @@ class GenericSearchBox<T extends Object> extends StatelessWidget {
                     ),
                   );
                 },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class LocationPicker extends StatefulWidget {
+  final LatLng? initialLocation;
+
+  const LocationPicker({super.key, this.initialLocation});
+
+  @override
+  State<LocationPicker> createState() => _LocationPickerState();
+}
+
+class _LocationPickerState extends State<LocationPicker> {
+  late LatLng _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.initialLocation ?? const LatLng(3.1390, 101.6869);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: SizedBox(
+        width: 600,
+        height: 500,
+        child: Column(
+          children: [
+            Expanded(
+              child: FlutterMap(
+                options: MapOptions(
+                  initialCenter: _selected,
+                  initialZoom: 13.0,
+                  minZoom: 4.0,
+                  maxZoom: 17.0,
+                  interactionOptions: const InteractionOptions(
+                    flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                    scrollWheelVelocity: 0.005,
+                  ),
+                  onTap: (_, point) => setState(() => _selected = point),
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.example.app',
+                    tileBuilder: (context, tileWidget, tile) {
+                      return Container(
+                        color: Colors.grey.shade200,
+                        child: tileWidget,
+                      );
+                    },
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: _selected,
+                        width: 40,
+                        height: 40,
+                        child: const Icon(Icons.location_on, color: Colors.red, size: 40),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${_selected.latitude.toStringAsFixed(5)}, ${_selected.longitude.toStringAsFixed(5)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context, _selected),
+                    child: const Text('Confirm Location'),
+                  ),
+                ],
               ),
             ),
           ],

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:pricimal/util.dart';
 import 'package:pricimal/repository.dart';
-
 
 
 class ShopPage extends StatefulWidget {
@@ -286,10 +286,26 @@ class _ShopEditDialogState extends State<ShopEditDialog> {
           child: const Text('Cancel'),
         ),
         ElevatedButton(
-          onPressed: () {
+          onPressed: () async {
             if (_nameController.text.isEmpty) return;
+
+            LatLng? location;
+
+            if (widget.existingShop == null) {
+              location = await showDialog<LatLng>(
+                context: context,
+                builder: (context) => const LocationPicker(),
+              );
+
+              if (location == null) return;
+            } else {
+              location = widget.existingShop!.location;
+            }
+
+            if (!context.mounted) return;
+            
             final shopId = widget.existingShop?.id ?? DateTime.now().millisecondsSinceEpoch.toString();
-            final shop = Shop(id: shopId, name: _nameController.text);
+            final shop = Shop(id: shopId, name: _nameController.text, location: location);
 
             Navigator.pop(context, [shop, _localProductPrices]);
           },
