@@ -11,6 +11,7 @@ class OptimizationResult {
 
   final List<Shop> shops;
   final List<Shop> route;
+  final List<double> routeDistance;
 
   final Map<String, String> purchases;
 
@@ -20,8 +21,134 @@ class OptimizationResult {
     required this.totalCost,
     required this.shops,
     required this.route,
+    required this.routeDistance,
     required this.purchases,
   });
+}
+
+class BruteForceOptimizer {
+  OptimizationResult? optimize({
+    required Map<String, int> basket,
+    required ShoppingRepository repository,
+    required LatLng home,
+    required double costPerMeter,
+  }) {
+    if (basket.isEmpty) return null;
+
+    double optimalCost = double.infinity;
+    OptimizationResult? optimalResult;
+
+    final subsets = _generateSubsets(repository.allShops);
+
+    for (final shopSubset in subsets) {
+      double productCost = 0.0;
+      final Map<String, String> purchases = {};
+      final Set<Shop> usedShops = {};
+      bool hasAllProducts = true;
+
+      for (final productId in basket.keys) {
+        double cheapestPrice = double.infinity;
+        Shop? cheapestShop;
+
+        for (final shop in shopSubset) {
+          final price = repository.getPrice(shop.id, productId);
+          if (price != null && price < cheapestPrice) {
+            cheapestPrice = price;
+            cheapestShop = shop;
+          }
+        }
+
+        if (cheapestShop == null) {
+          hasAllProducts = false;
+          break; // subset cannot fulfill the basket
+        }
+
+        productCost += cheapestPrice;
+        purchases[productId] = cheapestShop.name;
+        usedShops.add(cheapestShop);
+      }
+
+      if (!hasAllProducts) continue;
+
+      if (productCost >= optimalCost) continue; // no point in checking the travel cost
+
+      final usedShopList = usedShops.toList();
+      double minDist = double.infinity;
+      List<Shop> bestRoute = [];
+      List<double> bestRouteDistances = [];
+
+      if (usedShopList.length <= 1) {
+        minDist = Helper.distanceBetweenLocations(home, usedShopList.first.location);
+        bestRoute = usedShopList;
+        bestRouteDistances.add(minDist);
+      } else {
+        final permutations = _generatePermutations(usedShopList);
+        for (final routeCandidate in permutations) {
+          // starting at home
+          double totalDistance =  Helper.distanceBetweenLocations(home, routeCandidate.first.location);
+          List<double> routeDistances = [totalDistance];
+
+          for (int i = 0; i < routeCandidate.length - 1; i++) {
+            final from = routeCandidate[i];
+            final to = routeCandidate[i + 1];
+            final distance = Helper.distanceBetweenLocations(from.location, to.location);
+            routeDistances.add(distance);
+            totalDistance += distance;
+          }
+
+          if (totalDistance < minDist) {
+            minDist = totalDistance;
+            bestRoute = routeCandidate;
+            bestRouteDistances = routeDistances;
+          }
+        }
+      }
+
+      final travelCost = minDist * costPerMeter;
+      final totalCost = productCost + travelCost;
+
+      if (totalCost < optimalCost) {
+        optimalCost = totalCost;
+        optimalResult = OptimizationResult(
+          productCost: productCost,
+          travelCost: travelCost,
+          totalCost: totalCost,
+          shops: usedShopList,
+          route: bestRoute,
+          routeDistance: bestRouteDistances,
+          purchases: purchases,
+        );
+      }
+    }
+    return optimalResult;
+  }
+
+  /// Generates all subsets of a list
+  List<List<T>> _generateSubsets<T>(List<T> list) {
+    List<List<T>> subsets = [[]];
+    for (var element in list) {
+      int len = subsets.length;
+      for (int i = 0; i < len; i++) {
+        subsets.add([...subsets[i], element]);
+      }
+    }
+    subsets.removeWhere((sub) => sub.isEmpty);
+    return subsets;
+  }
+
+  /// Generates all permutations of a list
+  List<List<T>> _generatePermutations<T>(List<T> list) {
+    if (list.length <= 1) return [list];
+    List<List<T>> result = [];
+    for (int i = 0; i < list.length; i++) {
+      var item = list[i];
+      var remaining = List<T>.from(list)..removeAt(i);
+      for (var perm in _generatePermutations(remaining)) {
+        result.add([item, ...perm]);
+      }
+    }
+    return result;
+  }
 }
 
 class GreedyOptimizer {
@@ -78,7 +205,7 @@ class GreedyOptimizer {
 
     // identify shops that needs to be travelled through
     final usedShopIds = purchases.values.toSet();
-    final usedShops = <Shop>[];
+    final List<Shop> usedShops = [];
     for (final shopId in usedShopIds) {
       final shop = repository.getShop(shopId);
 
@@ -92,12 +219,12 @@ class GreedyOptimizer {
       shops: usedShops,
     );
 
-    final travelDistance = calculateRouteDistance(
+    final routeDist = calculateRouteDistance(
       home: home,
       route: route,
     );
 
-    final travelCost = travelDistance * costPerMeter;
+    final travelCost = routeDist.fold(0.0, (a, b) => a + b) * costPerMeter;
 
 
     final totalCost = productCost + travelCost;
@@ -109,6 +236,7 @@ class GreedyOptimizer {
       totalCost: totalCost,
       shops: usedShops,
       route: route,
+      routeDistance: routeDist,
       purchases: purchases,
     );
   }
@@ -132,7 +260,7 @@ class GreedyOptimizer {
       double? closestDistance;
 
       for (final shop in remaining) {
-        final distance = distanceBetweenLocations(
+        final distance = Helper.distanceBetweenLocations(
           currentLocation,
           shop.location,
         );
@@ -159,41 +287,36 @@ class GreedyOptimizer {
 
 
   /// Calculate the total distance for the route
-  double calculateRouteDistance({
+  List<double> calculateRouteDistance({
     required LatLng home,
     required List<Shop> route,
   }) {
 
     if (route.isEmpty) {
-      return 0;
+      return [];
     }
 
-    double totalDistance = 0;
+    // double totalDistance = 0;
+    List<double> routeDist = [];
 
     LatLng currentLocation = home;
 
     for (final shop in route) {
-      totalDistance += distanceBetweenLocations(
+      routeDist.add(Helper.distanceBetweenLocations(
         currentLocation,
         shop.location,
-      );
+      ));
 
       currentLocation = shop.location;
     }
 
-
-    // return back home
-    totalDistance += distanceBetweenLocations(
-      currentLocation,
-      home,
-    );
-
-    return totalDistance;
+    return routeDist;
   }
+}
 
-
-  /// HAVERSINE DISTANCE
-  double distanceBetweenLocations(
+class Helper {
+    /// HAVERSINE DISTANCE
+  static double distanceBetweenLocations(
     LatLng a,
     LatLng b,
   ) {

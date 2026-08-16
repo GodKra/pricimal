@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import 'package:pricimal/repository.dart';
 
 
-
 class BasketItemData {
   final Product product;
   int quantity;
@@ -72,7 +71,9 @@ class _BasketPageState extends State<BasketPage> {
     for (var item in _basketItems) item.product.id: item.quantity,
   };
 
-  void _showCheapestBasketResults(BuildContext context, OptimizationResult result, ShoppingRepository repository) {
+  void _showCheapestBasketResults(BuildContext context, OptimizationResult? result, ShoppingRepository repository) {
+    if (result == null) return;
+
     // Group purchases by shop
     final Map<String, List<String>> shopPurchases = {};
     result.purchases.forEach((productId, shopId) {
@@ -199,6 +200,7 @@ class _BasketPageState extends State<BasketPage> {
                             separatorBuilder: (_, _) => const SizedBox(height: 12),
                             itemBuilder: (context, index) {
                               final shop = result.route[index];
+                              final distance = result.routeDistance[index];
 
                               // Match purchases by shop
                               final itemsToBuy = shopPurchases[shop.name] ??
@@ -222,9 +224,18 @@ class _BasketPageState extends State<BasketPage> {
                                       ),
                                     ),
                                   ),
-                                  title: Text(
-                                    shop.name,
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                  title: Row(
+                                    children: [
+                                      Text(
+                                        shop.name,
+                                        style: const TextStyle(fontWeight: FontWeight.bold),
+                                      ),
+                                      SizedBox(width: 8.0),
+                                      Text(
+                                        '${(distance/1000).toStringAsFixed(2)} km',
+                                        style: const TextStyle(fontSize: 12.0)
+                                      )
+                                    ],
                                   ),
                                   subtitle: Text(
                                     '${itemsToBuy.length} item(s) assigned',
@@ -278,14 +289,14 @@ class _BasketPageState extends State<BasketPage> {
   @override
   Widget build(BuildContext context) {
     final repository = context.watch<ShoppingRepository>();
-    final optimizer = GreedyOptimizer();
+    final optimizer = BruteForceOptimizer();
     final results = optimizer.optimize(
       basket: _productQuantities, 
       repository: repository, 
       home: LatLng(3.0647, 101.6091), 
       costPerMeter: 0.01
     );
-    final cheapestCost = results!.totalCost;
+    final cheapestCost = results != null ? results.totalCost : 0.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

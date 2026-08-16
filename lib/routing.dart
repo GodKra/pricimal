@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pricimal/basket.dart';
 import 'package:pricimal/home.dart';
@@ -28,14 +27,14 @@ final GoRouter router = GoRouter(
             ),
           ],
         ),
-        StatefulShellBranch(
-          routes: [
-            GoRoute(
-              path: '/history',
-              builder: (context, state) => const Scaffold(),
-            ),
-          ],
-        ),
+        // StatefulShellBranch(
+        //   routes: [
+        //     GoRoute(
+        //       path: '/history',
+        //       builder: (context, state) => const Scaffold(),
+        //     ),
+        //   ],
+        // ),
       ],
     ),
   ],
