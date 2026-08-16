@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:pricimal/util.dart';
 import 'package:provider/provider.dart';
 import 'package:pricimal/routing.dart';
+import 'package:pricimal/repository.dart';
+
 
 
 void main() {

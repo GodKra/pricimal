@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:pricimal/util.dart';
+import 'package:pricimal/repository.dart';
+
 
 
 class ShopPage extends StatefulWidget {
@@ -17,7 +19,7 @@ class _ShopPageState extends State<ShopPage> {
 
     final result = await showDialog<List>(
       context: context,
-      barrierDismissible: true,
+      barrierDismissible: false, // accidentally clicking outside is terrible
       builder: (context) => ShopEditDialog(
         existingShop: existingShop,
       ),
@@ -125,37 +127,91 @@ class _ShopEditDialogState extends State<ShopEditDialog> {
     super.dispose();
   }
 
-  void _promptPriceAndAdd(Product product) {
+  void _showProductDialog(Product? product) {
+    final isEditing = product != null;
+
+    final nameController = TextEditingController(
+      text: product?.name ?? '',
+    );
     final priceController = TextEditingController(
-      text: _localProductPrices[product.id]?.toStringAsFixed(2) ?? '',
+      text: isEditing
+          ? _localProductPrices[product.id]?.toStringAsFixed(2) ?? ''
+          : '',
     );
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Set Price for ${product.name}'),
-        content: TextField(
-          controller: priceController,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-            labelText: 'Price (RM)',
-            border: OutlineInputBorder(),
-          ),
+      builder: (dialogContext) => AlertDialog(
+        title: Text(isEditing ? 'Edit Product' : 'Add New Product'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Product Name',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: priceController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Price (RM)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
-              final val = double.tryParse(priceController.text);
-              if (val != null && val >= 0) {
-                setState(() => _localProductPrices[product.id] = val);
+              final name = nameController.text.trim();
+              final price = double.tryParse(priceController.text);
+
+              if (name.isEmpty || price == null || price < 0) {
+                return;
               }
-              Navigator.pop(context);
+
+              final repository = context.read<ShoppingRepository>();
+
+              if (isEditing) {
+                final isNewName = name != product.name;
+                // new name means new product is created
+                if (isNewName) {
+                  final newId = DateTime.now().millisecondsSinceEpoch.toString();
+                  final newProduct = Product(id: newId, name: name);
+                  repository.addProduct(newProduct);
+
+                  setState(() {
+                    _localProductPrices.remove(product.id);
+                    _localProductPrices[newId] = price;
+                  });
+                } else {
+                  setState(() {
+                    _localProductPrices[product.id] = price;
+                  });
+                }
+              } else {
+                final newId = DateTime.now().millisecondsSinceEpoch.toString();
+                final newProduct = Product(id: newId, name: name);
+                
+                repository.addProduct(newProduct);
+
+                setState(() {
+                  _localProductPrices[newProduct.id] = price;
+                });
+              }
+
+              Navigator.pop(dialogContext);
             },
-            child: const Text('Save Price'),
+            child: Text(isEditing ? 'Save' : 'Create'),
           ),
         ],
       ),
@@ -185,11 +241,23 @@ class _ShopEditDialogState extends State<ShopEditDialog> {
                 ),
               ),
               const SizedBox(height: 20),
-              GenericSearchBox<Product>(
-                items: repository.allProducts,
-                onSelectItem: _promptPriceAndAdd,
-                labelBuilder: (p) => p.name,
-                trailingBuilder: (_) => '',
+              Row(
+                children: [
+                  Expanded(
+                    child: GenericSearchBox<Product>(
+                      items: repository.allProducts,
+                      onSelectItem: _showProductDialog,
+                      labelBuilder: (p) => p.name,
+                      trailingBuilder: (_) => '',
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  IconButton(
+                    onPressed: () => _showProductDialog(null),
+                    icon: const Icon(Icons.add),
+                    tooltip: 'New Product',
+                  ),           
+                ],
               ),
               const SizedBox(height: 12),
               ListView.builder(
@@ -204,7 +272,7 @@ class _ShopEditDialogState extends State<ShopEditDialog> {
                   return ListTile(
                     title: Text(prod.name),
                     trailing: Text('RM ${price.toStringAsFixed(2)}'),
-                    onTap: () => _promptPriceAndAdd(prod),
+                    onTap: () => _showProductDialog(prod),
                   );
                 },
               ),

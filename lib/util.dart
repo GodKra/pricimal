@@ -9,6 +9,11 @@ List<Product> sampleProducts = [
   Product(id: '6', name: 'Rice 5kg'),
   Product(id: '7', name: 'Cooking Oil 2L'),
   Product(id: '8', name: 'Cereal 500g'),
+  Product(id: '9', name: 'Cereal 0g'),
+  Product(id: '10', name: 'Cereal 50g'),
+  Product(id: '11', name: 'Cereal 0g'),
+  Product(id: '12', name: 'Cerea0g'),
+  Product(id: '13', name: 'Cereal g'),
 ];
 
 List<Shop> sampleShops = [
@@ -62,115 +67,22 @@ class ShopProductPrice {
   String get lookupKey => '${shopId}_$productId';
 }
 
-class ShoppingRepository extends ChangeNotifier {
-  final Map<String, Product> _products = {};
-  final Map<String, Shop> _shops = {};
-  final Map<String, double> _priceIndex = {};
-  final Set<String> _selectedShops = {};
+class ShopBasketResult {
+  final Shop shop;
+  final double totalCost;
+  final int foundItemsCount;
+  final int totalItemsCount;
+  final List<Product> missingProducts;
 
-  List<Product> get allProducts => _products.values.toList();
-  List<Shop> get allShops => _shops.values.toList();
-  List<Shop> get selectedShops => _selectedShops
-      .map((id) => _shops[id])
-      .whereType<Shop>()
-      .toList();
+  ShopBasketResult({
+    required this.shop,
+    required this.totalCost,
+    required this.foundItemsCount,
+    required this.totalItemsCount,
+    required this.missingProducts,
+  });
 
-  void initializeRepository(List<Product> products, List<Shop> shops, List<ShopProductPrice> prices) {
-    for (Product p in products) {
-      _products[p.id] = p;
-    }
-    for (Shop s in shops) {
-      _shops[s.id] = s;
-    }
-
-    for (ShopProductPrice pp in prices) {
-      _priceIndex[pp.lookupKey] = pp.price;
-    }
-  }
-
-  double? getPrice(String shopId, String productId) {
-    return _priceIndex['${shopId}_$productId'];
-  }
-
-  void setPrice(String shopId, String productId, double price) {
-    _priceIndex['${shopId}_$productId'] = price;
-    notifyListeners();
-  }
-
-  void selectShop(Shop shop) {
-    _selectedShops.add(shop.id);
-    notifyListeners();
-  }
-
-  void unselectShop(Shop shop) {
-    _selectedShops.remove(shop.id);
-    notifyListeners();
-  }
-
-  void addProduct(Product product) {
-    _products[product.id] = product;
-    notifyListeners();
-  }
-
-  void addShop(Shop shop) {
-    _shops[shop.id] = shop;
-    notifyListeners();
-  }
-
-  void addShopWithPrices(Shop shop, Map<String, double> productPrices) {
-    debugPrint("adding new shop");
-    _shops[shop.id] = shop;
-    _selectedShops.add(shop.id); // should be auto selected
-
-    productPrices.forEach((productId, price) {
-      _priceIndex['${shop.id}_$productId'] = price;
-    });
-
-    debugPrint("new shop added ${shop.id}: ${_shops[shop.id]}\n${_shops}");
-
-
-    notifyListeners();
-  }
-
-  void removeShop(String shopId) {
-    _shops.remove(shopId);
-    _priceIndex.removeWhere((key, _) => key.startsWith('${shopId}_'));
-    notifyListeners();
-  }
-
-  void removeProduct(String productId) {
-    _products.remove(productId);
-    _priceIndex.removeWhere((key, _) => key.endsWith('_$productId'));
-    notifyListeners();
-  }
-
-  List<Product> getProductsForShop(String shopId) {
-    return _products.values.where((p) => _priceIndex.containsKey('${shopId}_${p.id}')).toList();
-  }
-
-  List<Product> getProductsForShops(List<String> shopIds) {
-    if (shopIds.isEmpty) return [];
-
-    return _products.values.where((p) {
-      return shopIds.every((shopId) => _priceIndex.containsKey('${shopId}_${p.id}'));
-    }).toList();
-  }
-
-  List<Shop> getShopsForProduct(String productId) {
-    return _shops.values.where((s) => _priceIndex.containsKey('${s.id}_$productId')).toList();
-  }
-
-  Map<String, double> getPricesForShop(String shopId) {
-    final Map<String, double> result = {};
-
-    for (Product product in _products.values) {
-      final price = getPrice(shopId, product.id);
-      if (price != null) {
-        result[product.id] = price;
-      }
-    }
-    return result;
-  }
+  bool get isComplete => missingProducts.isEmpty;
 }
 
 class GenericSearchBox<T extends Object> extends StatelessWidget {

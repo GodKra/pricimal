@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pricimal/util.dart';
 import 'package:provider/provider.dart';
+import 'package:pricimal/repository.dart';
+
 
 
 class BasketItemData {
@@ -53,19 +55,184 @@ class _BasketPageState extends State<BasketPage> {
     });
   }
 
-  // double get _totalPrice => _basketItems.fold(
-  //       0.0,
-  //       (sum, item) => sum + (item.product.price * item.quantity),
-  //     );
-
+  double _basketTotal(ShoppingRepository repository) {
+    return _basketItems.fold(
+      0.0,
+      (sum, item) => sum + (repository.getProductAvgPrice(item.product.id) * item.quantity),
+    );
+  }
   int get _totalItems => _basketItems.fold(
-        0,
-        (sum, item) => sum + item.quantity,
-      );
+    0,
+    (sum, item) => sum + item.quantity,
+  );
+
+  Map<String, int> get _productQuantities => {
+    for (var item in _basketItems) item.product.id: item.quantity,
+  };
+
+void _showCheapestBasketResults(BuildContext context, List<ShopBasketResult> results) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 600,
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Cheapest Shops Comparison',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close),
+                        splashRadius: 20,
+                        tooltip: 'Close',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Prices compared across selected stores for your current basket.',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(height: 1),
+                  const SizedBox(height: 12),
+
+                  // Results List
+                  Expanded(
+                    child: results.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'No selected shops found. Select shops to compare prices.',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          )
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: results.length,
+                            separatorBuilder: (_, _) => const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final result = results[index];
+                              final isCheapest =
+                                  index == 0 && result.isComplete;
+
+                              return Container(
+                                margin: const EdgeInsets.symmetric(vertical: 4),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: isCheapest
+                                      ? Border.all(
+                                          color: Colors.green.shade200)
+                                      : null,
+                                ),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 8),
+                                  leading: CircleAvatar(
+                                    backgroundColor: isCheapest
+                                        ? Colors.green.shade100
+                                        : Colors.grey.shade200,
+                                    child: Icon(
+                                      isCheapest
+                                          ? Icons.emoji_events
+                                          : Icons.store,
+                                      color: isCheapest
+                                          ? Colors.green.shade800
+                                          : Colors.grey.shade700,
+                                    ),
+                                  ),
+                                  title: Row(
+                                    children: [
+                                      Text(
+                                        result.shop.name,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.bold),
+                                      ),
+                                      if (isCheapest) ...[
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.green,
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                          child: const Text(
+                                            'Best Deal',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  subtitle: Padding(
+                                    padding: const EdgeInsets.only(top: 4.0),
+                                    child: Text(
+                                      result.isComplete
+                                          ? 'All ${result.totalItemsCount} items available'
+                                          : '${result.foundItemsCount}/${result.totalItemsCount} items available (Missing: ${result.missingProducts.map((p) => p.name).join(", ")})',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: result.isComplete
+                                            ? Colors.grey.shade600
+                                            : Colors.orange.shade800,
+                                      ),
+                                    ),
+                                  ),
+                                  trailing: Text(
+                                    'RM ${result.totalCost.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: isCheapest
+                                          ? Colors.green.shade700
+                                          : Colors.black,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final repository = context.watch<ShoppingRepository>();
+    final results = _basketItems.isNotEmpty
+        ? repository.getCheapestShops(_productQuantities)
+        : <ShopBasketResult>[];
+    final cheapestCost = results.isNotEmpty ? results.first.totalCost : 0.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -107,7 +274,7 @@ class _BasketPageState extends State<BasketPage> {
 
                   BasketCard(
                     items: _basketItems,
-                    totalPrice: 0.0,
+                    totalPrice: _basketTotal(repository),
                     onDelete: _removeProduct,
                     onQuantityChanged: _updateQuantity,
                   ),
@@ -120,7 +287,8 @@ class _BasketPageState extends State<BasketPage> {
             Expanded(
               child: SummaryCard(
                 totalItems: _totalItems,
-                totalPrice: 0.0,
+                totalPrice: cheapestCost,
+                onFindCheapest: () => _showCheapestBasketResults(context, results),
               ),
             ),
           ],
@@ -223,6 +391,8 @@ class BasketItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final repository = context.read<ShoppingRepository>();
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -266,8 +436,7 @@ class BasketItem extends StatelessWidget {
           ),
           const SizedBox(width: 20),
           Text(
-            '0.0',
-            // 'RM ${(item.product.price * item.quantity).toStringAsFixed(2)}',
+            'RM ${(repository.getProductAvgPrice(item.product.id) * item.quantity).toStringAsFixed(2)}',
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(width: 15),
@@ -287,11 +456,13 @@ class BasketItem extends StatelessWidget {
 class SummaryCard extends StatelessWidget {
   final int totalItems;
   final double totalPrice;
+  final VoidCallback onFindCheapest;
 
   const SummaryCard({
     super.key,
     required this.totalItems,
     required this.totalPrice,
+    required this.onFindCheapest,
   });
 
   @override
@@ -328,15 +499,11 @@ class SummaryCard extends StatelessWidget {
               label: 'Items',
               value: '$totalItems',
             ),
-            SummaryRow(
-              label: 'Current estimate',
-              value: 'RM ${totalPrice.toStringAsFixed(2)}',
-            ),
             const SizedBox(height: 25),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: totalItems > 0 ? () {} : null,
+                onPressed: totalItems > 0 ? onFindCheapest : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFE53935),
                   foregroundColor: Colors.white,
